@@ -1,0 +1,68 @@
+
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Shearwater Dive Log Analytics V3.6</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><div class="container">
+<header class="top"><div><h1>Shearwater Dive Log Analytics</h1><p>Consolidated dive computer logs</p></div><label>Units <select id="units"><option value="metric">Metric</option><option value="imperial">Imperial</option></select></label></header>
+<form class="filters" method="get">
+  <div class="filter-block"><strong>Computers included</strong>
+    <div class="computer-cards">
+    {% for c in computers %}
+      <label class="computer-card {% if not selected_serials or c.serial in selected_serials %}selected{% endif %}">
+        <input type="checkbox" name="computers" value="{{c.serial}}" {% if not selected_serials or c.serial in selected_serials %}checked{% endif %}>
+        <span class="computer-card-title">{{c.name}}</span>
+        <span class="computer-card-line"><small>Model ID</small><b>{{c.model_id if c.model_id is not none else "—"}}</b></span>
+        <span class="computer-card-line"><small>Serial Number</small><b>{{c.serial}}</b></span>
+        <span class="computer-card-line"><small>Firmware</small><b>{{c.firmware_version}}</b></span>
+      </label>
+    {% endfor %}
+    </div>
+    <small>By default, all computers are included.</small>
+  </div>
+  <div class="filter-actions">
+    <label><input type="checkbox" name="deco" value="1" {% if deco_only %}checked{% endif %}> Deco dives only</label>
+    <button type="submit">Apply filters</button>
+    <a href="/">Clear</a>
+  </div>
+</form>
+<form id="decoFilter" method="get" style="display:none">{% if selected_serials %}{% for s in selected_serials %}<input type="hidden" name="computers" value="{{s}}">{% endfor %}{% endif %}<input type="hidden" name="deco" value="1"></form><div class="cards"><div><small>Dives</small><b>{{stats.dives}}</b></div><div class="clickable-card" onclick="document.getElementById('decoFilter').submit()"><small>Deco Dives</small><b>{{stats.deco_dives}}</b></div><div><small>Median average depth</small><b class="avg-depth-stat" data-m="{{stats.median_average_depth if stats.median_average_depth is not none else ''}}">{% if stats.median_average_depth is not none %}{{"%.1f"|format(stats.median_average_depth)}} m{% else %}—{% endif %}</b></div><div><small>Median duration</small><b>{% if stats.median_duration is not none %}{{"%.0f"|format(stats.median_duration)}} min{% else %}—{% endif %}</b></div></div>
+<table id="divesTable"><thead><tr>
+<th class="sortable" data-type="text">Dive ↕</th>
+<th class="sortable" data-type="text">Location ↕</th>
+<th class="sortable" data-type="text">Computers ↕</th>
+<th class="sortable" data-type="number">Max depth ↕</th>
+<th class="sortable" data-type="number">Avg. depth ↕</th><th class="sortable" data-type="number">Duration ↕</th>
+<th class="sortable" data-type="number">End GF99 ↕</th>
+<th class="sortable" data-type="number">Max Deco ↕</th>
+<th class="sortable" data-type="number">Transmitters ↕</th>
+</tr></thead><tbody>
+{% for d in dives %}<tr>
+<td data-sort="{{d.start}}"><a href="/dive/{{d.id}}{% if selected_serials %}?{% for s in selected_serials %}computers={{s|urlencode}}{% if not loop.last %}&{% endif %}{% endfor %}{% endif %}">{{d.id}}</a><br><small>{{d.start}}</small></td>
+<td data-sort="{{d.location or ''}}">{% if d.location %}{{d.location}}{% elif d.gps %}{{"%.5f"|format(d.gps[0])}}, {{"%.5f"|format(d.gps[1])}}{% else %}—{% endif %}{% if d.map_url %}<br><a href="{{d.map_url}}" target="_blank">mapa</a>{% endif %}</td>
+<td data-sort="{{d.computers|join(', ')}}">{{d.computers|join(", ")}}</td>
+<td data-sort="{{d.max_depth|float}}" class="depth" data-m="{{d.max_depth}}">{{"%.1f"|format(d.max_depth|float)}} m</td>
+<td data-sort="{{d.average_depth|float if d.average_depth is not none else -1}}">{% if d.average_depth is not none %}{{"%.1f"|format(d.average_depth|float)}} m{% else %}—{% endif %}</td><td data-sort="{{d.duration_min|float}}">{{"%.0f"|format(d.duration_min)}} min</td>
+<td data-sort="{{d.end_gf99|float if d.end_gf99 is not none else -1}}">{{"%.0f"|format(d.end_gf99|float) if d.end_gf99 is not none else "—"}}</td>
+<td data-sort="{{d.max_deco_obligation|float if d.max_deco_obligation is not none else -1}}">{{"%.0f"|format(d.max_deco_obligation|float) if d.max_deco_obligation is not none else "—"}} min</td>
+<td data-sort="{{d.tanks|length}}">{{d.tanks|length}}</td>
+</tr>{% endfor %}
+</tbody></table>
+</div><script>
+const table=document.getElementById("divesTable");
+table.querySelectorAll("th.sortable").forEach((th,index)=>{
+  let asc=true;
+  th.addEventListener("click",()=>{
+    const type=th.dataset.type;
+    const rows=[...table.tBodies[0].rows];
+    rows.sort((a,b)=>{
+      let av=a.cells[index].dataset.sort ?? a.cells[index].textContent.trim();
+      let bv=b.cells[index].dataset.sort ?? b.cells[index].textContent.trim();
+      if(type==="number"){av=Number(av);bv=Number(bv);return (av-bv)*(asc?1:-1);}
+      return av.localeCompare(bv,undefined,{numeric:true,sensitivity:"base"})*(asc?1:-1);
+    });
+    rows.forEach(r=>table.tBodies[0].appendChild(r));
+    table.querySelectorAll("th.sortable").forEach(h=>h.textContent=h.textContent.replace(/ [↑↓↕]$/," ↕"));
+    th.textContent=th.textContent.replace(/ [↑↓↕]$/,"")+(asc?" ↑":" ↓");
+    asc=!asc;
+  });
+});
+</script>
+<script>const u=document.getElementById("units");u.value=localStorage.getItem("ccr_units")||"metric";u.onchange=()=>{localStorage.setItem("ccr_units",u.value);location.reload()};if(u.value==="imperial"){document.querySelectorAll(".depth").forEach(e=>e.textContent=(+e.dataset.m*3.28084).toFixed(1)+" ft");const e=document.querySelector(".avg-depth-stat");if(e&&e.dataset.m)e.textContent=(+e.dataset.m*3.28084).toFixed(1)+" ft";}</script></body></html>

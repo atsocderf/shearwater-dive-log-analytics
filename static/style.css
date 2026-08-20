@@ -1,0 +1,18 @@
+
+body{font-family:system-ui,-apple-system,sans-serif;background:#f5f7fb;color:#172033;margin:0}.container{max-width:1500px;margin:30px auto;padding:0 20px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}a{color:#2563eb}.cards{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}.cards>div,.tx,.panel{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:14px}.cards small,.tx span{display:block;color:#64748b}.cards b{display:block;font-size:20px;margin-top:5px}table{width:100%;border-collapse:collapse;background:white}th,td{padding:8px 9px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px;vertical-align:top}th{background:#eef2f7}.txgrid{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}.p{white-space:nowrap}.tablewrap{overflow:auto}.panel{margin:15px 0}
+.muted{color:#64748b;font-size:13px}
+
+th.sortable{cursor:pointer;user-select:none}th.sortable:hover{background:#dfe7f2}
+
+.filters{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:18px 0;display:flex;gap:24px;justify-content:space-between;flex-wrap:wrap}.filter-block{min-width:320px}.checks{display:flex;gap:10px 18px;flex-wrap:wrap;margin:10px 0}.checks label{white-space:nowrap}.filter-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}button{border:0;border-radius:7px;padding:8px 14px;cursor:pointer}.clickable-card{cursor:pointer}.clickable-card:hover{border-color:#94a3b8}
+
+.tablewrap th{white-space:nowrap}.tablewrap td{min-width:75px}
+
+.computer-cards{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}.computer-card{position:relative;display:flex;flex-direction:column;gap:6px;min-width:220px;padding:14px 16px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;cursor:pointer;transition:.15s}.computer-card:hover{border-color:#94a3b8}.computer-card.selected{border-color:#334155;box-shadow:0 0 0 1px #334155 inset}.computer-card input{position:absolute;top:12px;right:12px;width:17px;height:17px}.computer-card-title{font-weight:700;font-size:16px;padding-right:24px}.computer-card-line{display:flex;justify-content:space-between;gap:16px;font-size:13px}.computer-card-line small{color:#64748b}.computer-card-line b{font-family:monospace;font-weight:600}
+
+.grouped-table thead tr:first-child th.computer-group{text-align:center;background:#e2e8f0;border-bottom:2px solid #94a3b8;font-size:15px}.grouped-table thead tr:nth-child(2) th{font-size:12px;white-space:nowrap}.grouped-table tbody td{vertical-align:middle}.grouped-table .computer-group{position:sticky;top:0}
+
+/* Per-computer visual bands in synchronized-data table */
+.grouped-table .computer-nerd-2{background:#f1f3f5}.grouped-table .computer-petrel{background:#ffffff}.grouped-table .computer-perdix-ai{background:#e9ecef}.grouped-table .computer-cell{border-left:1px solid #e1e5e9}.grouped-table th.computer-group{font-weight:700}.grouped-table th.computer-nerd-2,.grouped-table th.computer-perdix-ai{color:#20252b}.grouped-table th.computer-petrel{color:#20252b}
+
+.grouped-table thead tr:first-child th.computer-group.computer-nerd-2{background:#f1f3f5}.grouped-table thead tr:first-child th.computer-group.computer-petrel{background:#fff}.grouped-table thead tr:first-child th.computer-group.computer-perdix-ai{background:#e9ecef}

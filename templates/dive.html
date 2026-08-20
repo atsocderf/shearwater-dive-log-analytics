@@ -1,0 +1,77 @@
+
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>{{dive.id}}</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><div class="container">
+<a href="/">← voltar</a><header class="top"><div><h1>{{dive.start}}</h1><p>{{dive.id}} · {{dive.computers|join(" / ")}}</p></div><label>Units <select id="units"><option value="metric">Metric</option><option value="imperial">Imperial</option></select></label></header>
+<div class="cards"><div><small>Max depth</small><b id="maxdepth" data-m="{{dive.max_depth}}">{{"%.1f"|format(dive.max_depth|float)}} m</b></div><div><small>Avg. depth</small><b>{{"%.1f"|format(dive.average_depth|float) if dive.average_depth is not none else "—"}} m</b></div><div><small>End GF99</small><b>{{"%.0f"|format(dive.end_gf99|float) if dive.end_gf99 is not none else "—"}}</b></div><div><small>Max Deco</small><b>{{"%.0f"|format(dive.max_deco_obligation|float) if dive.max_deco_obligation is not none else "—"}} min</b></div></div>
+{% if dive.gps %}<div class="panel"><b>Locationização</b><p>{% if dive.location %}{{dive.location}} · {% endif %}{{"%.5f"|format(dive.gps[0])}}, {{"%.5f"|format(dive.gps[1])}} · <a href="{{dive.map_url}}" target="_blank">open in Google Maps</a></p></div>{% endif %}
+<h2>Transmitters</h2>{% if dive.tanks %}<div class="txgrid">{% for tx in dive.tanks %}<div class="tx"><b>Serial {{tx.serial}}</b>{% for a in tx.aliases %}<span>{{a.computer}}: {{a.name}}</span>{% endfor %}</div>{% endfor %}</div>{% else %}<p>No transmitter identified.</p>{% endif %}
+<h2>O₂ Cells</h2><p class="muted">C1, C2 and C3 are the raw cell readings in mV recorded by the computer. Petrel and Nerd 2 support cell readings in this project; computers without this capability are shown as —.</p>
+<h2>Synchronized data</h2>
+<div class="tablewrap grouped-table"><table>
+<thead>
+<tr>
+  <th rowspan="2">Time</th>
+  <th rowspan="2">Depth</th>
+  {% for m in dive.members %}
+    <th class="computer-group computer-{{m.computer|lower|replace(" ","-")}}" colspan="{{6 + (dive.tanks_by_computer.get(m.serial, [])|length)}}">{{m.computer}}</th>
+  {% endfor %}
+
+</tr>
+<tr>
+  {% for m in dive.members %}
+    <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">PPO₂</th>
+    <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">TTS</th>
+    <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">Ceiling / stop</th>
+    <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">GF99</th>
+    <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">CNS</th>
+    <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">O₂ cells mV<br><small>C1 / C2 / C3</small></th>
+    {% for tx in dive.tanks_by_computer.get(m.serial, []) %}
+      <th class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">Transmitter {{tx.name}}</th>
+    {% endfor %}
+  {% endfor %}
+</tr>
+</thead>
+<tbody>
+{% for r in dive.timeline %}
+<tr>
+  <td>{{"%d:%02d"|format(r.t_s//60,r.t_s%60)}}</td>
+  <td class="depth" data-m="{{r.depth_m}}">{{"%.1f"|format(r.depth_m)}} m</td>
+  {% for m in dive.members %}
+    <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">{{r.ppo2_by_device.get(m.serial,"—")}}</td>
+    <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">{% set tts=r.tts_by_device.get(m.serial) %}{% if tts is not none %}{{"%.0f"|format(tts)}} min{% else %}—{% endif %}</td>
+    <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">{% set ceil=r.ceiling_by_device.get(m.serial) %}{% set ctime=r.ceiling_time_by_device.get(m.serial) %}{% if ceil is not none %}{{"%.0f"|format(ceil)}} m{% if ctime is not none %}<br><small>{{"%.0f"|format(ctime)}} min</small>{% endif %}{% else %}—{% endif %}</td>
+    <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">{% set gf=r.gf99_by_device.get(m.serial) %}{% if gf is not none %}{{"%.0f"|format(gf)}} %{% else %}—{% endif %}</td>
+    <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">{% set cns=r.cns_by_device.get(m.serial) %}{% if cns is not none %}{{"%.0f"|format(cns)}} %{% else %}—{% endif %}</td>
+    <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">{% set cells=r.o2_cells_mv_by_device.get(m.serial) %}{% if cells %}{{"%.1f"|format(cells[0])}} / {{"%.1f"|format(cells[1])}} / {{"%.1f"|format(cells[2])}}{% else %}—{% endif %}</td>
+    {% for tx in dive.tanks_by_computer.get(m.serial, []) %}
+      {% set v=(r.tanks_by_serial.get(tx.serial,{})).get(m.serial) %}
+      <td class="computer-cell computer-{{m.computer|lower|replace(" ","-")}}">
+        <span class="p pressure"
+              data-psi="{{v if v is not none else ''}}"
+              data-bar="{{(v/14.5037738) if v is not none else ''}}">
+          {% if v is not none %}{{"%.0f"|format(v)}} psi{% else %}—{% endif %}
+        </span>
+      </td>
+    {% endfor %}
+  {% endfor %}</tr>
+{% endfor %}
+</tbody></table></div>
+</div><script>
+const u=document.getElementById("units");
+u.value=localStorage.getItem("ccr_units")||"metric";
+function applyUnits(){
+  const imperial=u.value==="imperial";
+  document.querySelectorAll(".depth").forEach(e=>{
+    const m=Number(e.dataset.m);
+    if(Number.isFinite(m)) e.textContent=imperial?(m*3.28084).toFixed(1)+" ft":m.toFixed(1)+" m";
+  });
+  document.querySelectorAll(".pressure").forEach(e=>{
+    const psi=Number(e.dataset.psi);
+    if(!Number.isFinite(psi)) return;
+    const value=imperial?psi:psi*0.0689475729;
+    e.textContent=value.toFixed(0)+(imperial?" psi":" bar");
+  });
+}
+u.onchange=()=>{localStorage.setItem("ccr_units",u.value);applyUnits()};
+applyUnits();
+</script></body></html>

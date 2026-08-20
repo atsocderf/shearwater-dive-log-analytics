@@ -1,0 +1,25 @@
+# Local dive database — do not commit personal dive data
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Local environment/configuration
+.env
+.env.*
+
+# Flask/debug artifacts
+instance/
