@@ -1,4 +1,3 @@
-
 import sqlite3, gzip, struct, json
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -140,11 +139,20 @@ def _calculated_value(raw, key):
 def _max_deco(raw):
     return _calculated_value(raw, "MaxDecoObligation")
 
+def _has_column(conn, table, column):
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(row[1] == column for row in rows)
+
 def load_dives(db_path):
     conn=sqlite3.connect(db_path); conn.row_factory=sqlite3.Row
-    rows=conn.execute("""
+    gnss_select = (
+        "GnssEntryLocation"
+        if _has_column(conn, "dive_details", "GnssEntryLocation")
+        else "'' AS GnssEntryLocation"
+    )
+    rows=conn.execute(f"""
       SELECT DiveId,SerialNumber,DiveDate,Depth,AverageDepth,EndGF99,calculated_values_from_samples,
-             GnssEntryLocation,Location,Site,TankProfileData,log_data.data_bytes_1
+             {gnss_select},Location,Site,TankProfileData,log_data.data_bytes_1
       FROM dive_details JOIN log_data ON log_data.log_id=dive_details.DiveId
       WHERE log_data.format='sw-pnf'
       ORDER BY DiveDate
@@ -153,6 +161,8 @@ def load_dives(db_path):
     for r in rows:
         d=decode_pnf(r["data_bytes_1"])
         defs=transmitter_defs(r["TankProfileData"])
+        gps_raw=r["GnssEntryLocation"] or ""
+        gps=parse_gps(gps_raw)
         result.append({
             "source_id":r["DiveId"],
             "start":r["DiveDate"],
@@ -168,9 +178,9 @@ def load_dives(db_path):
             "max_depth":r["Depth"],
             "end_gf99":_calculated_value(r["calculated_values_from_samples"], "EndGF99") if _calculated_value(r["calculated_values_from_samples"], "EndGF99") not in (None, 0.0) else (float(r["EndGF99"]) if r["EndGF99"] not in (None, "") and float(r["EndGF99"]) != 0 else None),
             "max_deco_obligation": _max_deco(r["calculated_values_from_samples"]),
-            "gps_raw":r["GnssEntryLocation"],
-            "gps": parse_gps(r["GnssEntryLocation"]),
-            "map_url": (map_url(*parse_gps(r["GnssEntryLocation"])) if parse_gps(r["GnssEntryLocation"]) else None),
+            "gps_raw":gps_raw,
+            "gps": gps,
+            "map_url": (map_url(*gps) if gps else None),
             "location":r["Location"],
             "site":r["Site"],
         })
