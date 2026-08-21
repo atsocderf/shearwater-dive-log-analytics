@@ -1,5 +1,6 @@
 
 from statistics import median
+from decoder import at_deco_stop
 
 def best_shift(anchor, other, max_shift=30):
     # Compare depth profiles in sample-index space.
@@ -58,6 +59,7 @@ def consolidate(group,gid):
         tts={serial:s.tts_min for serial,s in device.items()}
         ceiling={serial:s.ceiling_m for serial,s in device.items()}
         ceiling_time={serial:s.ceiling_time_min for serial,s in device.items()}
+        next_stop={serial:s.next_stop_m for serial,s in device.items()}
         gf99={serial:s.gf99 for serial,s in device.items()}
         cns={serial:s.cns for serial,s in device.items()}
         # Computers without cell capability deliberately remain None.
@@ -79,11 +81,25 @@ def consolidate(group,gid):
             "tts_by_device":tts,
             "ceiling_by_device":ceiling,
             "ceiling_time_by_device":ceiling_time,
+            "next_stop_by_device":next_stop,
             "gf99_by_device":gf99,
             "cns_by_device":cns,
             "o2_cells_mv_by_device":o2_cells,
             "tanks_by_serial":tanks
         })
+    deco_samples=0
+    prev_depth=None
+    prev_t=None
+    for r in timeline:
+        dt=(r["t_s"]-prev_t) if prev_t is not None else None
+        depth=r.get("depth_m")
+        if depth is not None and any(
+            at_deco_stop(depth, stop, prev_depth, dt)
+            for stop in r["next_stop_by_device"].values()
+        ):
+            deco_samples+=1
+        prev_depth=depth
+        prev_t=r.get("t_s")
     tankmap={}
     for d in group:
         for idx,tx in d["transmitters"].items():
@@ -98,6 +114,8 @@ def consolidate(group,gid):
         "duration_min": round(max((len(d["samples"])-1)*d["interval_s"]/60.0 for d in group if d["samples"]),1),
         "end_gf99":next((float(d["end_gf99"]) for d in group if d["end_gf99"] not in (None, "") and float(d["end_gf99"]) != 0),None),
         "max_deco_obligation":next((d.get("max_deco_obligation") for d in group if d.get("max_deco_obligation") is not None),None),
+        "dive_mode":anchor.get("dive_mode") or "other",
+        "effective_deco_min":round(deco_samples*anchor["interval_s"]/60.0,2),
         "gps":next((d.get("gps") for d in group if d.get("gps")),None),
         "map_url":next((d.get("map_url") for d in group if d.get("map_url")),None),
         "location":next((d.get("location") for d in group if d.get("location")),None),

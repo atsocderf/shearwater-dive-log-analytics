@@ -23,7 +23,41 @@
     <a href="/">Clear</a>
   </div>
 </form>
-<form id="decoFilter" method="get" style="display:none">{% if selected_serials %}{% for s in selected_serials %}<input type="hidden" name="computers" value="{{s}}">{% endfor %}{% endif %}<input type="hidden" name="deco" value="1"></form><div class="cards"><div><small>Dives</small><b>{{stats.dives}}</b></div><div class="clickable-card" onclick="document.getElementById('decoFilter').submit()"><small>Deco Dives</small><b>{{stats.deco_dives}}</b></div><div><small>Median average depth</small><b class="avg-depth-stat" data-m="{{stats.median_average_depth if stats.median_average_depth is not none else ''}}">{% if stats.median_average_depth is not none %}{{"%.1f"|format(stats.median_average_depth)}} m{% else %}—{% endif %}</b></div><div><small>Median duration</small><b>{% if stats.median_duration is not none %}{{"%.0f"|format(stats.median_duration)}} min{% else %}—{% endif %}</b></div></div>
+<div class="stats-grid-wrap">
+<table class="stats-grid">
+<thead>
+<tr>
+  <th>Estatística</th>
+  {% for col in stats_grid.columns %}
+  <th>{{col.label}}</th>
+  {% endfor %}
+</tr>
+</thead>
+<tbody>
+{% for row in stats_grid.rows %}
+<tr class="stats-parent" data-stat="{{row.id}}">
+  <td>
+    <button type="button" class="stats-toggle" aria-expanded="false" aria-label="Mostrar por computador">▶</button>
+    {{row.label}}
+  </td>
+  {% for col in stats_grid.columns %}
+    {% set cell=row.total[col.id] %}
+    <td class="stats-value{% if cell.meters is not none %} depth{% endif %}"{% if cell.meters is not none %} data-m="{{cell.meters}}"{% endif %}>{{cell.text}}</td>
+  {% endfor %}
+</tr>
+{% for computer in stats_grid.computers %}
+<tr class="stats-child" data-parent="{{row.id}}" hidden>
+  <td class="stats-indent">{{computer.name}} <small>{{computer.serial}}</small></td>
+  {% for col in stats_grid.columns %}
+    {% set cell=row.by_computer[computer.serial][col.id] %}
+    <td class="stats-value{% if cell.meters is not none %} depth{% endif %}"{% if cell.meters is not none %} data-m="{{cell.meters}}"{% endif %}>{{cell.text}}</td>
+  {% endfor %}
+</tr>
+{% endfor %}
+{% endfor %}
+</tbody>
+</table>
+</div>
 <table id="divesTable"><thead><tr>
 <th class="sortable" data-type="text">Dive ↕</th>
 <th class="sortable" data-type="text">Location ↕</th>
@@ -46,6 +80,20 @@
 </tr>{% endfor %}
 </tbody></table>
 </div><script>
+document.querySelectorAll(".stats-toggle").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const row=btn.closest("tr");
+    const id=row.dataset.stat;
+    const open=btn.getAttribute("aria-expanded")==="true";
+    btn.setAttribute("aria-expanded",String(!open));
+    btn.textContent=open?"▶":"▼";
+    document.querySelectorAll(`.stats-child[data-parent="${id}"]`).forEach(child=>{
+      child.hidden=open;
+    });
+  });
+});
+</script>
+<script>
 const table=document.getElementById("divesTable");
 table.querySelectorAll("th.sortable").forEach((th,index)=>{
   let asc=true;
@@ -65,4 +113,4 @@ table.querySelectorAll("th.sortable").forEach((th,index)=>{
   });
 });
 </script>
-<script>const u=document.getElementById("units");u.value=localStorage.getItem("ccr_units")||"metric";u.onchange=()=>{localStorage.setItem("ccr_units",u.value);location.reload()};if(u.value==="imperial"){document.querySelectorAll(".depth").forEach(e=>e.textContent=(+e.dataset.m*3.28084).toFixed(1)+" ft");const e=document.querySelector(".avg-depth-stat");if(e&&e.dataset.m)e.textContent=(+e.dataset.m*3.28084).toFixed(1)+" ft";}</script></body></html>
+<script>const u=document.getElementById("units");u.value=localStorage.getItem("ccr_units")||"metric";function applyUnits(){const imperial=u.value==="imperial";document.querySelectorAll(".depth").forEach(e=>{const m=Number(e.dataset.m);if(!Number.isFinite(m))return;e.textContent=imperial?(m*3.28084).toFixed(1)+" ft":m.toFixed(1)+" m";});}u.onchange=()=>{localStorage.setItem("ccr_units",u.value);applyUnits()};applyUnits();</script></body></html>

@@ -4,6 +4,57 @@ from datetime import datetime
 from geo import parse_gps, map_url
 
 MODELS={2:"Predator",3:"Petrel",4:"Nerd",5:"Perdix",6:"Perdix AI",7:"Nerd 2",8:"Teric",9:"Peregrine",10:"Petrel 3",11:"Perdix 2",12:"Tern"}
+# PNF opening record 4 (0x14), byte 1: 0 CC, 1 OC Tec, 5 CC2, 6 OC Rec.
+DIVE_MODES={0:"cc_bo",1:"oc_tec",5:"cc_bo",6:"oc_rec"}
+# Effective deco: elapsed time at a recommended stop while the on-computer
+# stop clock (PNF firstStopTime) is active. A 6 m last-stop hang also counts
+# when the clock has already switched to 3 m.
+LAST_STOP_MAX_M=6.5
+HANG_ZONE_SHALLOW_M=2.0
+HANG_ZONE_DEEP_M=7.5
+HANG_MAX_SPEED_M_PER_MIN=1.2
+STOP_DEPTH_TOLERANCE_M=1.5
+
+def _dive_mode(opening):
+    rec=opening.get(4)
+    if not rec or len(rec)<2:
+        return "other"
+    return DIVE_MODES.get(rec[1],"other")
+
+def at_deco_stop(depth, next_stop_m, prev_depth=None, dt_s=None):
+    if depth is None or not next_stop_m:
+        return False
+    at_recommended=abs(depth-next_stop_m) <= STOP_DEPTH_TOLERANCE_M
+    last_stop_hang=(
+        next_stop_m <= LAST_STOP_MAX_M
+        and HANG_ZONE_SHALLOW_M <= depth <= HANG_ZONE_DEEP_M
+    )
+    if not (at_recommended or last_stop_hang):
+        return False
+    if prev_depth is not None and dt_s:
+        speed=abs(depth-prev_depth)/dt_s*60.0
+        if speed > HANG_MAX_SPEED_M_PER_MIN:
+            return False
+    return True
+
+def _effective_deco_min(samples, interval_s):
+    if not samples or not interval_s:
+        return 0.0
+    n=0
+    for i,s in enumerate(samples):
+        prev=samples[i-1] if i else None
+        dt=(s.t_s-prev.t_s) if prev else None
+        prev_depth=prev.depth if prev else None
+        if s.stop_time_min is None:
+            continue
+        if at_deco_stop(s.depth, s.next_stop_m, prev_depth, dt):
+            n+=1
+    return round(n*interval_s/60.0,2)
+
+def _duration_min(samples, interval_s):
+    if not samples:
+        return 0.0
+    return round(max(len(samples)-1,0)*interval_s/60.0,1)
 
 @dataclass
 class Sample:
@@ -18,6 +69,8 @@ class Sample:
     cns: float|None = None
     o2_cells_mv: list|None = None
     tank_pressures: dict=field(default_factory=dict)
+    next_stop_m: float|None = None
+    stop_time_min: float|None = None
 
 def u16(b,o): return struct.unpack_from(">H",b,o)[0]
 def u32(b,o): return struct.unpack_from(">I",b,o)[0]
@@ -61,17 +114,21 @@ def decode_pnf(blob):
             p0=pressure(u16(rec,28)); p1=pressure(u16(rec,20))
             if p0 is not None: tanks[0]=p0
             if p1 is not None: tanks[1]=p1
+            next_stop=u16(rec,3)
+            # PNF maps to Shearwater Cloud dive_log_records:
+            # bytes 3-4 = firstStopDepth, byte 10 = firstStopTime (stop clock)
+            # when firstStopDepth is 0, byte 10 is NDL instead.
+            stop_clock=float(rec[10]) if next_stop > 0 else None
             last=Sample(
                 t_s=t,
                 depth=u16(rec,1)/10.0,
                 temp=struct.unpack("b",rec[14:15])[0],
                 avg_ppo2=rec[7]/100.0,
-                # PNF: bytes 5-6 = TTS (minutes), 24 = deco ceiling/stop depth,
-                # 10 = NDL or next-stop time. A zero stop depth means there is
-                # no deco ceiling; byte 10 is then NDL rather than stop time.
                 tts_min=float(u16(rec,5)),
+                next_stop_m=float(next_stop) if next_stop > 0 else None,
+                stop_time_min=stop_clock,
                 ceiling_m=float(rec[24]) if rec[24] > 0 else None,
-                ceiling_time_min=float(rec[10]) if rec[24] > 0 else None,
+                ceiling_time_min=stop_clock,
                 # PNF: byte 23 is CNS percentage; byte 25 is GF99.
                 # 0xFF means GF99 is not available while tissues are on-gassing.
                 cns=float(rec[23]),
@@ -109,8 +166,11 @@ def decode_pnf(blob):
         # PNF stores the computer serial as a 32-bit hexadecimal identifier.
         "serial": f"{serial:08X}" if serial is not None else "",
         "computer": model,
+        "dive_mode": _dive_mode(opening),
         "samples": samples,
         "interval_s": interval,
+        "duration_min": _duration_min(samples, interval),
+        "effective_deco_min": _effective_deco_min(samples, interval),
     }
 
 def transmitter_defs(tank_json):
@@ -173,6 +233,9 @@ def load_dives(db_path):
             "firmware_version":d.get("firmware_version"),
             "samples":d["samples"],
             "interval_s":d["interval_s"],
+            "dive_mode":d.get("dive_mode") or "other",
+            "duration_min":d.get("duration_min") or 0.0,
+            "effective_deco_min":d.get("effective_deco_min") or 0.0,
             "transmitters":defs,
             "average_depth":_calculated_value(r["calculated_values_from_samples"], "AverageDepth") if _calculated_value(r["calculated_values_from_samples"], "AverageDepth") not in (None, 0.0) else (float(r["AverageDepth"]) if r["AverageDepth"] not in (None, "") and float(r["AverageDepth"]) != 0 else None),
             "max_depth":r["Depth"],

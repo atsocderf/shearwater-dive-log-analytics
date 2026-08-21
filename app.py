@@ -1,7 +1,7 @@
 from flask import Flask,render_template,abort,request
-import statistics
 from decoder import load_dives
 from matcher import build_unified_dives
+from stats import build_stats_grid
 
 app=Flask(__name__)
 DB_PATH="dive_data.db"
@@ -33,31 +33,28 @@ def selected_serials():
         return None
     return {x.strip() for x in values if x.strip()}
 
-def data(selected=None):
+def filtered_raw(selected=None):
     raw=raw_data()
     if selected:
         raw=[d for d in raw if d["serial"] in selected]
-    return build_unified_dives(raw)
+    return raw
+
+def data(selected=None):
+    return build_unified_dives(filtered_raw(selected))
 
 @app.route("/")
 def index():
-    raw=raw_data()
-    computers=available_computers(raw)
+    raw_all=raw_data()
+    computers=available_computers(raw_all)
     selected=selected_serials()
-    dives=data(selected)
+    raw=raw_all if not selected else [d for d in raw_all if d["serial"] in selected]
+    dives=build_unified_dives(raw)
     deco_only=request.args.get("deco","0")=="1"
     if deco_only:
         dives=[d for d in dives if (d.get("max_deco_obligation") or 0)>0]
-    source_dives=data(selected)
-    durations=[float(d["duration_min"]) for d in source_dives if d.get("duration_min") is not None]
-    depths=[float(d["average_depth"]) for d in source_dives if d.get("average_depth") not in (None,0)]
-    stats={
-        "dives":len(dives),
-        "deco_dives":sum(1 for d in source_dives if (d.get("max_deco_obligation") or 0)>0),
-        "median_average_depth":statistics.median(depths) if depths else None,
-        "median_duration":statistics.median(durations) if durations else None,
-    }
-    return render_template("index.html",dives=dives,stats=stats,computers=computers,
+        raw=[d for d in raw if (d.get("max_deco_obligation") or 0)>0]
+    stats_grid=build_stats_grid(dives, raw)
+    return render_template("index.html",dives=dives,stats_grid=stats_grid,computers=computers,
                            selected_serials=selected, deco_only=deco_only)
 
 @app.route("/dive/<dive_id>")
